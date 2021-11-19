@@ -1,6 +1,8 @@
 package au.com.cyberavenue.weblogic.deploy.plugin;
 
 import static org.twdata.maven.mojoexecutor.MojoExecutor.artifactId;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.attribute;
+import static org.twdata.maven.mojoexecutor.MojoExecutor.attributes;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.configuration;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.element;
 import static org.twdata.maven.mojoexecutor.MojoExecutor.executeMojo;
@@ -13,6 +15,7 @@ import static org.twdata.maven.mojoexecutor.MojoExecutor.version;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.apache.maven.execution.MavenSession;
@@ -97,6 +100,12 @@ public abstract class AbstractWeblogicDeployMojo extends AbstractMojo {
     @Parameter(property = "downloadDirectory", defaultValue = "target")
     private String downloadDirectory;
 
+    @Parameter(property = "admin_url")
+    private String adminUrl;
+
+    @Parameter(property = "admin_user")
+    private String adminUser;
+
     @Parameter(defaultValue = "${session}", readonly = true)
     private MavenSession mavenSession;
 
@@ -128,6 +137,7 @@ public abstract class AbstractWeblogicDeployMojo extends AbstractMojo {
         System.setProperty("org.slf4j.simpleLogger.log.org.codehaus.mojo.exec.ExecMojo", "OFF");
 
         executeWeblogicDeployScript();
+//        antRunWeblogicDeployScript();
     }
 
     abstract String getWeblogicDeployCommand();
@@ -258,7 +268,72 @@ public abstract class AbstractWeblogicDeployMojo extends AbstractMojo {
             arguments.add(rcuDbUser);
         }
 
+        if (StringUtils.isNotBlank(adminUrl)) {
+            arguments.add("-admin_url");
+            arguments.add(adminUrl);
+        }
+
+        if (StringUtils.isNotBlank(adminUser)) {
+            arguments.add("-admin_user");
+            arguments.add(adminUser);
+        }
+
         return arguments;
+    }
+
+    protected void antRunWeblogicDeployScript() throws MojoExecutionException {
+        executeMojo(
+            plugin(
+                groupId("org.apache.maven.plugins"),
+                artifactId("maven-antrun-plugin"),
+                version("3.0.0")),
+            goal("run"),
+            buildAntRunConfiguration(),
+            executionEnvironment(
+                mavenSession,
+                pluginManager));
+    }
+
+    protected Xpp3Dom buildAntRunConfiguration() {
+        return configuration(element("target",
+            element("exec",
+                attributes(
+                    attribute("executable", "cmd"),
+                    attribute("spawn", "false")),
+                buildAntRunExecChildElements())));
+    }
+
+    private Element[] buildAntRunExecChildElements() {
+        return Stream.concat(buildAntRunExecEnvElements().stream(),
+            buildAntRunExecArgElements().stream())
+            .toArray(Element[]::new);
+
+//        return buildAntRunExecEnvElements().stream()
+//            .toArray(Element[]::new);
+    }
+
+    private List<Element> buildAntRunExecArgElements() {
+        return Stream
+            .concat(
+                Stream.of("/C", downloadDirectory + "\\weblogic-deploy\\bin\\" + getWeblogicDeployCommand() + ".cmd"),
+                buildArguments().stream())
+            .map(s -> element("arg", attribute("value", s)))
+            .collect(Collectors.toList());
+    }
+
+    private List<Element> buildAntRunExecEnvElements() {
+        List<Element> elements = new ArrayList<>();
+
+        if (StringUtils.isNotBlank(oracleHome)) {
+            elements.add(element("env", attributes(attribute("key", "ORACLE_HOME"), attribute("value", oracleHome))));
+        }
+
+        if (StringUtils.isNotBlank(wdtCustomConfig)) {
+            elements.add(
+                element("env", attributes(attribute("key", "WDT_CUSTOM_CONFIG"), attribute("value", wdtCustomConfig))));
+        }
+
+        return elements;
     }
 
 }
