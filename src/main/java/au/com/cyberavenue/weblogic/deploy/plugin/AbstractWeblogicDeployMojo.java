@@ -97,6 +97,20 @@ public abstract class AbstractWeblogicDeployMojo extends AbstractMojo {
     @Parameter(property = "downloadDirectory", defaultValue = "target")
     private String downloadDirectory;
 
+    @Parameter(property = "admin_url")
+    private String adminUrl;
+
+    @Parameter(property = "admin_user")
+    private String adminUser;
+
+    @Parameter(property = "admin_pass_env")
+    private String adminPassEnv;
+
+    @Parameter(property = "admin_pass_file")
+    private String adminPassFile;
+
+    private String adminPass;
+
     @Parameter(defaultValue = "${session}", readonly = true)
     private MavenSession mavenSession;
 
@@ -151,10 +165,18 @@ public abstract class AbstractWeblogicDeployMojo extends AbstractMojo {
 
     protected Xpp3Dom buildExecCmdConfiguration() {
         return configuration(element(name("executable"), "cmd"),
-            element(name("arguments"), buildArgumentElements()),
-            element(name("environmentVariables"),
-                element("ORACLE_HOME", oracleHome),
-                element("WDT_CUSTOM_CONFIG", wdtCustomConfig)));
+            element("arguments", buildArgumentElements()),
+            element("environmentVariables", buildEnvironmentElements()));
+    }
+
+    private Element[] buildEnvironmentElements() {
+        List<Element> elements = new ArrayList<>();
+        elements.add(element("ORACLE_HOME", oracleHome));
+        elements.add(element("WDT_CUSTOM_CONFIG", wdtCustomConfig));
+        if (StringUtils.isNotBlank(adminPassEnv)) {
+            elements.add(element(adminPassEnv, adminPass));
+        }
+        return elements.stream().toArray(Element[]::new);
     }
 
     private Element[] buildArgumentElements() {
@@ -166,7 +188,7 @@ public abstract class AbstractWeblogicDeployMojo extends AbstractMojo {
             .toArray(Element[]::new);
     }
 
-    private List<String> buildArguments() {
+    protected List<String> buildArguments() {
 
         List<String> arguments = new ArrayList<>();
 
@@ -256,6 +278,21 @@ public abstract class AbstractWeblogicDeployMojo extends AbstractMojo {
         if (StringUtils.isNotBlank(rcuDbUser)) {
             arguments.add("-rcu_db_user");
             arguments.add(rcuDbUser);
+        }
+
+        if (StringUtils.isNotBlank(adminUrl)) {
+            arguments.add("-admin_url");
+            arguments.add(adminUrl);
+        }
+
+        if (StringUtils.isNotBlank(adminUser)) {
+            arguments.add("-admin_user");
+            arguments.add(adminUser);
+        }
+
+        if (StringUtils.isNotBlank(adminPassEnv)) {
+            arguments.add("-admin_pass_env");
+            arguments.add(adminPassEnv);
         }
 
         return arguments;
